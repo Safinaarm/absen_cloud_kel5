@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Absen Mahasiswa</title>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 40px; background: #f3f4f6; }
+    h1 { color: #4c1d95; }
+    input { padding: 12px; width: 80%; max-width: 300px; margin: 10px; font-size: 16px; }
+    button { padding: 12px 30px; background: #7c3aed; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; }
+    #status { margin-top: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Absen Mahasiswa - <?= course_id ?></h1>
+  <p>Sesi: <?= session_id ?> | Token: <?= qr_token ?></p>
+  
+  <input type="text" id="user_id" placeholder="Masukkan NIM / User ID" required>
+  <br>
+  <button onclick="submitAbsen()">Submit Absen</button>
+  <div id="status"></div>
+
+  <script>
+    async function submitAbsen() {
+      const user_id = document.getElementById('user_id').value.trim();
+      if (!user_id) return alert("User ID wajib diisi!");
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = "Mengirim absen…";
+
+      const payload = {
+        user_id,
+        device_id: navigator.userAgent,
+        course_id: "<?= course_id ?>",
+        session_id: "<?= session_id ?>",
+        qr_token: "<?= qr_token ?>",
+        ts: new Date().toISOString()
+      };
+
+      try {
+        const res = await fetch('<?= BASE_WEBAPP_URL ?>?action=checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        statusEl.textContent = data.ok
+          ? `Absen berhasil! ID: ${data.data.presence_id}`
+          : `Gagal: ${data.error}`;
+      } catch(err) {
+        statusEl.textContent = "Error: " + err.message;
+      }
+    }
+  </script>
+</body>
+</html>

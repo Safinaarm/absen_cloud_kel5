@@ -3,192 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR Absensi Digital - Input Nama & Scan</title>
+  <title>QR Absensi Digital</title>
+  <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f0f4f8;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 30px 15px;
-      margin: 0;
-    }
-    h1 { color: #4c1d95; margin-bottom: 10px; }
-    .container { max-width: 420px; width: 100%; }
-    input, button {
-      width: 100%;
-      padding: 14px;
-      font-size: 16px;
-      margin: 12px 0;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      box-sizing: border-box;
-    }
-    button {
-      background: #7c3aed;
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    button:hover { background: #5a1ed8; }
-    #status, #scanStatus {
-      margin: 15px 0;
-      font-weight: bold;
-      text-align: center;
-      min-height: 24px;
-    }
-    video {
-      width: 100%;
-      max-width: 360px;
-      border: 3px solid #7c3aed;
-      border-radius: 12px;
-      margin: 20px auto;
-      display: none;
-    }
-    .info {
-      font-size: 14px;
-      color: #555;
-      text-align: center;
-      margin: 10px 0;
-    }
+    body { margin:0; font-family:Arial,sans-serif; background:linear-gradient(135deg,#667eea,#764ba2); color:white; display:flex; justify-content:center; align-items:center; min-height:100vh; }
+    .card { background:rgba(255,255,255,0.92); color:#333; border-radius:16px; padding:32px; text-align:center; max-width:400px; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
+    h1 { margin:0 0 8px; color:#4c1d95; }
+    .subtitle { color:#6b7280; margin-bottom:24px; }
+    #qrcode { margin:24px auto; background:white; padding:16px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.15); }
+    #countdown { font-size:56px; font-weight:bold; color:#c026d3; margin:16px 0; }
+    .progress { height:10px; background:#e5e7eb; border-radius:5px; overflow:hidden; }
+    .progress-bar { height:100%; background:linear-gradient(to right,#7c3aed,#c026d3); width:100%; transition:width 1s linear; }
+    #status { margin-top:20px; padding:12px 24px; border-radius:999px; font-weight:bold; font-size:18px; }
+    .active  { background:#d1fae5; color:#065f46; }
+    .expired { background:#fee2e2; color:#991b1b; }
   </style>
 </head>
 <body>
-
-<div class="container">
-  <h1>QR Absensi Digital</h1>
-
-  <div id="step1">
-    <p style="text-align:center; margin-bottom:20px;">Masukkan Nama / NIM Anda</p>
-    <input type="text" id="user_id" placeholder="Nama / NIM" required autofocus>
-    <button id="submitNameBtn">Lanjut ke Scan QR</button>
-    <div id="status"></div>
+  <div class="card">
+    <h1>QR Absensi Digital</h1>
+    <p class="subtitle">Scan sebelum QR berganti (5 menit)</p>
+    <div id="qrcode"></div>
+    <div id="countdown">05:00</div>
+    <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+    <div id="status" class="active">Status: Memuat...</div>
   </div>
 
-  <div id="step2" style="display:none;">
-    <p style="text-align:center;">Arahkan kamera ke QR Code absensi</p>
-    <video id="video" autoplay playsinline></video>
-    <div id="scanStatus"></div>
-    <div id="resultInfo" class="info"></div>
-  </div>
-</div>
+  <script>
+    let expirySeconds = 300;
+    let timerInterval;
 
-<script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
-<script>
-  const BASE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwtaOPeaNCevIXk1SaP2KlhFrsUFAc0fyn_vPwiqUVEiJSzF_9nn56zH_hKEYjzaweG/exec";
-
-  let user_id = "";
-
-  // ── STEP 1: hanya simpan nama sementara ──
-  document.getElementById("submitNameBtn").addEventListener("click", () => {
-    user_id = document.getElementById("user_id").value.trim();
-    const status = document.getElementById("status");
-
-    if (!user_id) {
-      status.textContent = "Nama / NIM wajib diisi!";
-      status.style.color = "red";
-      return;
+    function loadQR() {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.ok) {
+            document.getElementById("qrcode").innerHTML = "";
+            new QRCode(document.getElementById("qrcode"), {
+              text: result.data.checkin_url,
+              width: 260,
+              height: 260
+            });
+            document.getElementById("status").textContent = "Status: Aktif";
+            document.getElementById("status").className = "active";
+            expirySeconds = 300;
+            startCountdown();
+          } else {
+            document.getElementById("status").textContent = "Error: " + result.error;
+            document.getElementById("status").className = "expired";
+          }
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById("status").textContent = "Gagal: " + err.message;
+          document.getElementById("status").className = "expired";
+        })
+        .generateQRServer();
     }
 
-    status.textContent = "Siap! Silakan scan QR Code...";
-    status.style.color = "green";
-
-    document.getElementById("step1").style.display = "none";
-    document.getElementById("step2").style.display = "block";
-
-    startScanQR();
-  });
-
-  // ── STEP 2: Scan QR ──
-  function startScanQR() {
-    const codeReader = new ZXing.BrowserMultiFormatReader();
-    const video = document.getElementById("video");
-    const scanStatus = document.getElementById("scanStatus");
-    const resultInfo = document.getElementById("resultInfo");
-
-    video.style.display = "block";
-
-    // Akses kamera belakang
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => {
-        scanStatus.textContent = "Gagal membuka kamera: " + err.message;
-        scanStatus.style.color = "red";
-      });
-
-    codeReader.decodeFromVideoDevice(undefined, "video", async (result, err) => {
-      if (result) {
-        // Berhentikan scanning setelah dapat hasil
-        codeReader.reset();
-        video.style.display = "none";
-
-        scanStatus.textContent = "QR terdeteksi... memproses absensi";
-        scanStatus.style.color = "blue";
-
-        try {
-          const url = new URL(result.text);
-
-          // Ambil parameter yang diperlukan dari QR
-          const qr_token   = url.searchParams.get("qr_token");
-          const course_id  = url.searchParams.get("course_id");
-          const session_id = url.searchParams.get("session_id");
-
-          if (!qr_token || !course_id || !session_id) {
-            throw new Error("QR Code tidak valid atau format salah");
-          }
-
-          const payload = {
-            user_id,
-            device_id: navigator.userAgent || "unknown-device",
-            course_id,
-            session_id,
-            qr_token,
-            ts: new Date().toISOString()
-          };
-          // Ganti fetch yang lama dengan ini
-const res = await fetch(`${BASE_WEBAPP_URL}?action=checkin`, {
-  method: "POST",
-  mode: "cors",                  // tetap cors
-  redirect: "follow",
-  headers: {
-    "Content-Type": "text/plain;charset=UTF-8"   // <--- KUNCI: pakai text/plain
-  },
-  body: JSON.stringify(payload)   // body tetap JSON string
-});
-          const data = await res.json();
-
-          if (data.ok) {
-            scanStatus.textContent = "Absen berhasil!";
-            scanStatus.style.color = "green";
-
-            resultInfo.innerHTML = `
-              Mata kuliah: <b>${payload.course_id}</b><br>
-              Sesi: <b>${payload.session_id}</b><br>
-              ID Absen: <b>${data.data.presence_id || "—"}</b>
-            `;
-          } else {
-            scanStatus.textContent = data.error || "Gagal melakukan absensi";
-            scanStatus.style.color = "red";
-          }
-
-        } catch (err) {
-          scanStatus.textContent = "Gagal: " + (err.message || "Koneksi bermasalah");
-          scanStatus.style.color = "red";
-          console.error(err);
+    function startCountdown() {
+      clearInterval(timerInterval);
+      let timeLeft = expirySeconds;
+      timerInterval = setInterval(() => {
+        const min = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        const sec = (timeLeft % 60).toString().padStart(2, '0');
+        document.getElementById("countdown").textContent = `${min}:${sec}`;
+        const percent = (timeLeft / expirySeconds) * 100;
+        document.getElementById("progressBar").style.width = percent + "%";
+        timeLeft--;
+        if (timeLeft < 0) {
+          clearInterval(timerInterval);
+          document.getElementById("countdown").textContent = "00:00";
+          document.getElementById("status").textContent = "Expired – Refresh...";
+          document.getElementById("status").className = "expired";
+          setTimeout(loadQR, 1500);
         }
-      }
+      }, 1000);
+    }
 
-      if (err && !(err instanceof ZXing.NotFoundException)) {
-        console.error("Scan error:", err);
-        scanStatus.textContent = "Error saat scanning";
-        scanStatus.style.color = "red";
-      }
-    });
-  }
-</script>
+    window.onload = loadQR;
+  </script>
 </body>
 </html>
