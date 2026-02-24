@@ -2,84 +2,78 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR Absensi Digital</title>
-  <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <title>Generate QR Absensi</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+  <!-- QR Library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+
   <style>
-    body { margin:0; font-family:Arial,sans-serif; background:linear-gradient(135deg,#667eea,#764ba2); color:white; display:flex; justify-content:center; align-items:center; min-height:100vh; }
-    .card { background:rgba(255,255,255,0.92); color:#333; border-radius:16px; padding:32px; text-align:center; max-width:400px; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
-    h1 { margin:0 0 8px; color:#4c1d95; }
-    .subtitle { color:#6b7280; margin-bottom:24px; }
-    #qrcode { margin:24px auto; background:white; padding:16px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.15); }
-    #countdown { font-size:56px; font-weight:bold; color:#c026d3; margin:16px 0; }
-    .progress { height:10px; background:#e5e7eb; border-radius:5px; overflow:hidden; }
-    .progress-bar { height:100%; background:linear-gradient(to right,#7c3aed,#c026d3); width:100%; transition:width 1s linear; }
-    #status { margin-top:20px; padding:12px 24px; border-radius:999px; font-weight:bold; font-size:18px; }
-    .active  { background:#d1fae5; color:#065f46; }
-    .expired { background:#fee2e2; color:#991b1b; }
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 30px;
+    }
+    #qrcode {
+      margin: 20px auto;
+      width: 220px;
+      height: 220px;
+    }
+    .info {
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 18px;
+      font-size: 14px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>QR Absensi Digital</h1>
-    <p class="subtitle">Scan sebelum QR berganti (5 menit)</p>
-    <div id="qrcode"></div>
-    <div id="countdown">05:00</div>
-    <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
-    <div id="status" class="active">Status: Memuat...</div>
-  </div>
 
-  <script>
-    let expirySeconds = 300;
-    let timerInterval;
+  <h2>QR Absensi</h2>
 
-    function loadQR() {
-      google.script.run
-        .withSuccessHandler(function(result) {
-          if (result.ok) {
-            document.getElementById("qrcode").innerHTML = "";
-            new QRCode(document.getElementById("qrcode"), {
-              text: result.data.checkin_url,
-              width: 260,
-              height: 260
-            });
-            document.getElementById("status").textContent = "Status: Aktif";
-            document.getElementById("status").className = "active";
-            expirySeconds = 300;
-            startCountdown();
-          } else {
-            document.getElementById("status").textContent = "Error: " + result.error;
-            document.getElementById("status").className = "expired";
-          }
-        })
-        .withFailureHandler(function(err) {
-          document.getElementById("status").textContent = "Gagal: " + err.message;
-          document.getElementById("status").className = "expired";
-        })
-        .generateQRServer();
-    }
+  <button onclick="generateQR()">Generate QR</button>
 
-    function startCountdown() {
-      clearInterval(timerInterval);
-      let timeLeft = expirySeconds;
-      timerInterval = setInterval(() => {
-        const min = Math.floor(timeLeft / 60).toString().padStart(2, '0');
-        const sec = (timeLeft % 60).toString().padStart(2, '0');
-        document.getElementById("countdown").textContent = `${min}:${sec}`;
-        const percent = (timeLeft / expirySeconds) * 100;
-        document.getElementById("progressBar").style.width = percent + "%";
-        timeLeft--;
-        if (timeLeft < 0) {
-          clearInterval(timerInterval);
-          document.getElementById("countdown").textContent = "00:00";
-          document.getElementById("status").textContent = "Expired – Refresh...";
-          document.getElementById("status").className = "expired";
-          setTimeout(loadQR, 1500);
-        }
-      }, 1000);
-    }
+  <div id="qrcode"></div>
 
-    window.onload = loadQR;
-  </script>
+  <div class="info" id="info"></div>
+
+<script>
+const BASE_API = "https://script.google.com/macros/s/AKfycbwtaOPeaNCevIXk1SaP2KlhFrsUFAc0fyn_vPwiqUVEiJSzF_9nn56zH_hKEYjzaweG/exec";
+
+function generateQR() {
+  document.getElementById("qrcode").innerHTML = "";
+  document.getElementById("info").innerHTML = "Generating QR...";
+
+  fetch(`${BASE_API}?action=generate`)
+    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) {
+        alert("Gagal generate QR");
+        return;
+      }
+
+      const { checkin_url, expires_at, qr_token } = res.data;
+
+      new QRCode(document.getElementById("qrcode"), {
+        text: checkin_url,
+        width: 220,
+        height: 220
+      });
+
+      document.getElementById("info").innerHTML = `
+        <b>Token:</b> ${qr_token}<br>
+        <b>Expired:</b> ${new Date(expires_at).toLocaleString()}
+      `;
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error koneksi ke server");
+    });
+}
+</script>
+
 </body>
 </html>
