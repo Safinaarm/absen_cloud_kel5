@@ -3,202 +3,128 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Scan QR Absensi</title>
-  <!-- Dummy favicon -->
-  <link rel="icon" href="data:,">
-  <!-- ZXing library untuk decode QR (ringan dan stabil) -->
-  <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+  <title>Absen Mahasiswa - Cloud Kel5</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      padding: 20px;
-      background: #f3f4f6;
-      margin: 0;
+      padding: 40px 20px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
       min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .container {
+      background: rgba(255,255,255,0.95);
+      color: #333;
+      border-radius: 16px;
+      padding: 30px;
+      max-width: 400px;
+      margin: 0 auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
     h1 { color: #4c1d95; margin-bottom: 10px; }
-    p { color: #555; }
-    video, img {
-      width: 100%;
-      max-width: 500px;
-      border: 4px solid #7c3aed;
-      border-radius: 12px;
-      margin: 15px auto;
-      display: block;
-    }
-    #preview { display: none; }
-    #form {
-      display: none;
-      margin: 30px auto;
-      max-width: 400px;
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    input[type="text"] {
+    p.subtitle { color: #555; margin-bottom: 25px; }
+    input {
       padding: 14px;
       width: 100%;
       font-size: 18px;
       border: 2px solid #ddd;
       border-radius: 8px;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
       box-sizing: border-box;
     }
-    button, label {
-      padding: 14px 40px;
+    button {
+      padding: 14px 50px;
       background: #7c3aed;
       color: white;
       border: none;
       border-radius: 8px;
       font-size: 18px;
       cursor: pointer;
-      margin: 10px;
-      display: inline-block;
+      transition: background 0.3s;
     }
-    button:hover, label:hover { background: #5a1ed8; }
+    button:hover { background: #5a1ed8; }
     #status {
-      margin-top: 20px;
+      margin-top: 25px;
       font-weight: bold;
       font-size: 18px;
-      min-height: 40px;
+      min-height: 30px;
     }
-    #loading {
-      display: none;
-      color: #7c3aed;
-      font-size: 20px;
-      margin: 20px 0;
-      font-weight: bold;
-    }
+    .success { color: #065f46; }
+    .error { color: #991b1b; }
+    .loading { color: #7c3aed; }
   </style>
 </head>
 <body>
-  <h1>Scan QR Absensi</h1>
-  <p>Scan QR dari dosen menggunakan kamera atau galeri.</p>
+  <div class="container">
+    <h1>Absen Mahasiswa</h1>
+    <p class="subtitle">Masukkan Nama atau NIM kamu</p>
 
-  <!-- Tombol untuk buka kamera -->
-  <label for="qrInput">Buka Kamera / Pilih dari Galeri</label>
-  <input type="file" id="qrInput" accept="image/*" capture="environment" style="display:none;">
+    <input type="text" id="user_id" placeholder="Nama / NIM" required autofocus>
 
-  <img id="preview" alt="Preview gambar QR">
-
-  <div id="form">
-    <p>QR berhasil discan!</p>
-    <input type="text" id="user_id" placeholder="Masukkan Nama atau NIM" required autofocus>
-    <br>
     <button onclick="submitAbsen()">Submit Absen</button>
+
+    <div id="status"></div>
   </div>
 
-  <div id="loading">Memproses absen...</div>
-  <div id="status">Arahkan kamera ke QR...</div>
-
   <script>
-    const codeReader = new ZXing.BrowserMultiFormatReader();
-    const previewImg = document.getElementById("preview");
-    const form = document.getElementById("form");
-    const statusDiv = document.getElementById("status");
-    const loadingDiv = document.getElementById("loading");
-    let params = {};
+    // Ganti parameter ini dengan nilai dari QR (bisa di-hardcode atau ambil dari URL)
+    // Untuk versi web khusus, bisa pakai query string: ?qr_token=...&course_id=...&session_id=...
+    const urlParams = new URLSearchParams(window.location.search);
+    const qr_token = urlParams.get('qr_token') || 'TK N-DEFAULT'; // fallback kalau manual
+    const course_id = urlParams.get('course_id') || 'cloud-101';
+    const session_id = urlParams.get('session_id') || 'sesi-default';
 
-    // Saat pilih file/gambar dari kamera/galeri
-    document.getElementById("qrInput").addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    async function submitAbsen() {
+      const user_id = document.getElementById('user_id').value.trim();
+      const statusEl = document.getElementById('status');
 
-      statusDiv.innerHTML = "Memproses QR...";
-      statusDiv.style.color = "blue";
-
-      const img = new Image();
-      img.onload = () => {
-        previewImg.src = img.src;
-        previewImg.style.display = "block";
-
-        // Decode QR dari gambar
-        codeReader.decodeFromImage(img)
-          .then(result => {
-            console.log("QR detected:", result.text);
-            processQR(result.text);
-          })
-          .catch(err => {
-            console.error("Decode error:", err);
-            statusDiv.innerHTML = "Gagal baca QR. Coba lagi.";
-            statusDiv.style.color = "red";
-          });
-      };
-      img.src = URL.createObjectURL(file);
-    });
-
-    function processQR(qrData) {
-      try {
-        let url = new URL(qrData);
-        params.qr_token = url.searchParams.get("qr_token");
-        params.course_id = url.searchParams.get("course_id");
-        params.session_id = url.searchParams.get("session_id");
-
-        console.log("Parsed params:", params);
-
-        if (params.qr_token && params.course_id && params.session_id) {
-          statusDiv.innerHTML = "QR valid! Masukkan Nama/NIM.";
-          statusDiv.style.color = "green";
-          form.style.display = "block";
-        } else {
-          statusDiv.innerHTML = "QR terdeteksi tapi parameter tidak lengkap.";
-          statusDiv.style.color = "orange";
-        }
-      } catch (err) {
-        console.error("Parse URL gagal:", err);
-        statusDiv.innerHTML = "QR terdeteksi tapi format URL salah.";
-        statusDiv.style.color = "red";
-      }
-    }
-
-    function submitAbsen() {
-      const user_id = document.getElementById("user_id").value.trim();
       if (!user_id) {
-        alert("Nama/NIM wajib diisi!");
+        statusEl.textContent = "Nama/NIM wajib diisi!";
+        statusEl.className = "error";
         return;
       }
 
-      loadingDiv.style.display = "block";
-      statusDiv.innerHTML = "";
-      statusDiv.style.color = "blue";
+      statusEl.textContent = "Mengirim absen...";
+      statusEl.className = "loading";
 
       const payload = {
         user_id,
         device_id: navigator.userAgent || "unknown",
-        course_id: params.course_id,
-        session_id: params.session_id,
-        qr_token: params.qr_token,
+        course_id,
+        session_id,
+        qr_token,
         ts: new Date().toISOString()
       };
 
-      fetch("https://script.google.com/macros/s/AKfycbzealgPWQ38xTRwwjFXb7QMNzhSuTVNyYfMKwy-HL2YDYqgsZ_4DVNVgryePaY5gr8/exec?action=checkin", {
-        method: "POST",
-        mode: "cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      })
-      .then(res => {
+      try {
+        const res = await fetch("https://script.google.com/macros/s/AKfycbzealgPWQ38xTRwwjFXb7QMNzhSuTVNyYfMKwy-HL2YDYqgsZ_4DVNVgryePaY5gr8/exec?action=checkin", {
+          method: "POST",
+          mode: "cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        loadingDiv.style.display = "none";
+
+        const data = await res.json();
+
         if (data.ok) {
-          statusDiv.innerHTML = "Absen berhasil! ID: " + (data.data?.presence_id || "Sukses");
-          statusDiv.style.color = "green";
-          form.style.display = "none";
+          statusEl.textContent = `Absen berhasil! ID: ${data.data.presence_id || "Sukses"}`;
+          statusEl.className = "success";
         } else {
-          statusDiv.innerHTML = "Gagal: " + (data.error || "Unknown");
-          statusDiv.style.color = "red";
+          statusEl.textContent = `Gagal: ${data.error || "Unknown error"}`;
+          statusEl.className = "error";
         }
-      })
-      .catch(err => {
-        loadingDiv.style.display = "none";
-        statusDiv.innerHTML = "Gagal koneksi: " + err.message;
-        statusDiv.style.color = "red";
-      });
+      } catch (err) {
+        statusEl.textContent = "Gagal koneksi ke server: " + err.message;
+        statusEl.className = "error";
+        console.error(err);
+      }
     }
   </script>
 </body>
