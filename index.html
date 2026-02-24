@@ -6,36 +6,40 @@
   <title>Scan QR Absensi</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #f3f4f6; }
-    h1 { color: #4c1d95; }
-    video { width: 100%; max-width: 400px; border: 2px solid #7c3aed; border-radius: 12px; }
-    #form { display: none; margin-top: 20px; }
-    input { padding: 12px; width: 80%; max-width: 300px; font-size: 16px; }
-    button { padding: 12px 30px; background: #7c3aed; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; margin-top: 10px; }
-    #status { margin-top: 20px; font-weight: bold; color: #065f46; }
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #f3f4f6; margin: 0; }
+    h1 { color: #4c1d95; margin-bottom: 10px; }
+    video { width: 100%; max-width: 500px; border: 4px solid #7c3aed; border-radius: 12px; margin: 10px auto; display: block; }
+    canvas { display: none; }
+    #form { display: none; margin: 20px auto; max-width: 400px; }
+    input { padding: 14px; width: 100%; font-size: 18px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 15px; box-sizing: border-box; }
+    button { padding: 14px 40px; background: #7c3aed; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; }
+    button:hover { background: #5a1ed8; }
+    #status { margin-top: 20px; font-weight: bold; font-size: 18px; min-height: 30px; }
+    #loading { display: none; color: #7c3aed; font-size: 20px; margin-top: 20px; }
   </style>
 </head>
 <body>
   <h1>Scan QR Absensi</h1>
-  <p>Gunakan kamera untuk scan QR dari dosen.</p>
-  <video id="video"></video>
-  <canvas id="canvas" style="display: none;"></canvas>
-  
+  <p>Gunakan kamera HP untuk scan QR dari dosen.</p>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas"></canvas>
+
   <div id="form">
-    <p>QR sukses discan! Masukkan Nama/NIM:</p>
-    <input type="text" id="user_id" placeholder="Nama atau NIM" required>
-    <br>
-    <button onclick="submitAbsen()">Submit</button>
+    <p>QR berhasil discan!</p>
+    <input type="text" id="user_id" placeholder="Masukkan Nama atau NIM" required autofocus>
+    <button onclick="submitAbsen()">Submit Absen</button>
   </div>
-  
+
+  <div id="loading">Memproses absen...</div>
   <div id="status"></div>
 
   <script>
-    let video = document.getElementById("video");
-    let canvas = document.getElementById("canvas");
-    let form = document.getElementById("form");
-    let statusDiv = document.getElementById("status");
-    let params = {}; // Untuk simpan qr_token, course_id, session_id dari QR
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const form = document.getElementById("form");
+    const statusDiv = document.getElementById("status");
+    const loadingDiv = document.getElementById("loading");
+    let params = {};
 
     // Mulai kamera
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -45,11 +49,12 @@
         requestAnimationFrame(scanQR);
       })
       .catch(err => {
-        statusDiv.innerHTML = "Error akses kamera: " + err.message;
+        statusDiv.innerHTML = "Gagal akses kamera: " + err.message;
         statusDiv.style.color = "red";
+        console.error("Kamera error:", err);
       });
 
-    // Scan QR setiap frame
+    // Scan QR
     function scanQR() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         canvas.height = video.videoHeight;
@@ -59,33 +64,46 @@
         let code = jsQR(imageData.data, imageData.width, imageData.height);
 
         if (code) {
-          // Parse URL dari QR
-          let url = new URL(code.data);
-          params.qr_token = url.searchParams.get("qr_token");
-          params.course_id = url.searchParams.get("course_id");
-          params.session_id = url.searchParams.get("session_id");
+          console.log("QR detected:", code.data);
 
-          if (params.qr_token && params.course_id && params.session_id) {
-            video.pause();
-            form.style.display = "block";
-            statusDiv.innerHTML = "QR sukses discan!";
-          } else {
-            statusDiv.innerHTML = "QR tidak valid. Coba lagi.";
+          try {
+            let url = new URL(code.data);
+            params.qr_token = url.searchParams.get("qr_token");
+            params.course_id = url.searchParams.get("course_id");
+            params.session_id = url.searchParams.get("session_id");
+
+            console.log("Parsed params:", params);
+
+            if (params.qr_token && params.course_id && params.session_id) {
+              video.pause();
+              form.style.display = "block";
+              statusDiv.innerHTML = "QR valid! Masukkan Nama/NIM.";
+              statusDiv.style.color = "green";
+              return; // Stop scan
+            } else {
+              statusDiv.innerHTML = "QR terdeteksi tapi parameter tidak lengkap. Coba lagi.";
+              statusDiv.style.color = "orange";
+            }
+          } catch (err) {
+            console.error("Parse URL gagal:", err);
+            statusDiv.innerHTML = "QR terdeteksi tapi format URL salah.";
             statusDiv.style.color = "red";
           }
-          return; // Stop scan setelah sukses
         }
       }
       requestAnimationFrame(scanQR);
     }
 
-    // Submit absen via POST ke GAS
+    // Submit
     function submitAbsen() {
-      let user_id = document.getElementById("user_id").value.trim();
-      if (!user_id) return alert("Nama/NIM wajib diisi!");
+      const user_id = document.getElementById("user_id").value.trim();
+      if (!user_id) {
+        alert("Nama/NIM wajib diisi!");
+        return;
+      }
 
-      let payload = {
-        user_id: user_id,
+      const payload = {
+        user_id,
         device_id: navigator.userAgent || "unknown",
         course_id: params.course_id,
         session_id: params.session_id,
@@ -93,23 +111,36 @@
         ts: new Date().toISOString()
       };
 
+      loadingDiv.style.display = "block";
+      statusDiv.innerHTML = "";
+      statusDiv.style.color = "blue";
+
       fetch("https://script.google.com/macros/s/AKfycbzealgPWQ38xTRwwjFXb7QMNzhSuTVNyYfMKwy-HL2YDYqgsZ_4DVNVgryePaY5gr8/exec?action=checkin", {
         method: "POST",
+        mode: "cors",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
+        loadingDiv.style.display = "none";
+        console.log("Response dari GAS:", data);
         if (data.ok) {
-          statusDiv.innerHTML = "Absen berhasil! ID: " + data.data.presence_id;
+          statusDiv.innerHTML = "Absen berhasil! ID: " + (data.data.presence_id || "Sukses");
           statusDiv.style.color = "green";
+          form.style.display = "none"; // Sembunyikan form setelah sukses
         } else {
-          statusDiv.innerHTML = "Gagal: " + data.error;
+          statusDiv.innerHTML = "Gagal absen: " + (data.error || "Unknown");
           statusDiv.style.color = "red";
         }
       })
       .catch(err => {
-        statusDiv.innerHTML = "Error koneksi: " + err.message;
+        loadingDiv.style.display = "none";
+        console.error("Fetch error:", err);
+        statusDiv.innerHTML = "Gagal koneksi ke server: " + err.message;
         statusDiv.style.color = "red";
       });
     }
