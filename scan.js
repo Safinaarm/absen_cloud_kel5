@@ -1,4 +1,4 @@
-// scan.js - Template + logika scan QR + form absen untuk mode=checkin
+
 
 function getScanPage() {
   return `
