@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scan QR Absensi</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #f3f4f6; }
+    h1 { color: #4c1d95; }
+    video { width: 100%; max-width: 400px; border: 2px solid #7c3aed; border-radius: 12px; }
+    #form { display: none; margin-top: 20px; }
+    input { padding: 12px; width: 80%; max-width: 300px; font-size: 16px; }
+    button { padding: 12px 30px; background: #7c3aed; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; margin-top: 10px; }
+    #status { margin-top: 20px; font-weight: bold; color: #065f46; }
+  </style>
+</head>
+<body>
+  <h1>Scan QR Absensi</h1>
+  <p>Gunakan kamera untuk scan QR dari dosen.</p>
+  <video id="video"></video>
+  <canvas id="canvas" style="display: none;"></canvas>
+  
+  <div id="form">
+    <p>QR sukses discan! Masukkan Nama/NIM:</p>
+    <input type="text" id="user_id" placeholder="Nama atau NIM" required>
+    <br>
+    <button onclick="submitAbsen()">Submit</button>
+  </div>
+  
+  <div id="status"></div>
+
+  <script>
+    let video = document.getElementById("video");
+    let canvas = document.getElementById("canvas");
+    let form = document.getElementById("form");
+    let statusDiv = document.getElementById("status");
+    let params = {}; // Untuk simpan qr_token, course_id, session_id dari QR
+
+    // Mulai kamera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        requestAnimationFrame(scanQR);
+      })
+      .catch(err => {
+        statusDiv.innerHTML = "Error akses kamera: " + err.message;
+        statusDiv.style.color = "red";
+      });
+
+    // Scan QR setiap frame
+    function scanQR() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+        let imageData = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+        let code = jsQR(imageData.data, imageData.width, imageData.height);
+
+        if (code) {
+          // Parse URL dari QR
+          let url = new URL(code.data);
+          params.qr_token = url.searchParams.get("qr_token");
+          params.course_id = url.searchParams.get("course_id");
+          params.session_id = url.searchParams.get("session_id");
+
+          if (params.qr_token && params.course_id && params.session_id) {
+            video.pause();
+            form.style.display = "block";
+            statusDiv.innerHTML = "QR sukses discan!";
+          } else {
+            statusDiv.innerHTML = "QR tidak valid. Coba lagi.";
+            statusDiv.style.color = "red";
+          }
+          return; // Stop scan setelah sukses
+        }
+      }
+      requestAnimationFrame(scanQR);
+    }
+
+    // Submit absen via POST ke GAS
+    function submitAbsen() {
+      let user_id = document.getElementById("user_id").value.trim();
+      if (!user_id) return alert("Nama/NIM wajib diisi!");
+
+      let payload = {
+        user_id: user_id,
+        device_id: navigator.userAgent || "unknown",
+        course_id: params.course_id,
+        session_id: params.session_id,
+        qr_token: params.qr_token,
+        ts: new Date().toISOString()
+      };
+
+      fetch("https://script.google.com/macros/s/AKfycbzealgPWQ38xTRwwjFXb7QMNzhSuTVNyYfMKwy-HL2YDYqgsZ_4DVNVgryePaY5gr8/exec?action=checkin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          statusDiv.innerHTML = "Absen berhasil! ID: " + data.data.presence_id;
+          statusDiv.style.color = "green";
+        } else {
+          statusDiv.innerHTML = "Gagal: " + data.error;
+          statusDiv.style.color = "red";
+        }
+      })
+      .catch(err => {
+        statusDiv.innerHTML = "Error koneksi: " + err.message;
+        statusDiv.style.color = "red";
+      });
+    }
+  </script>
+</body>
+</html>
