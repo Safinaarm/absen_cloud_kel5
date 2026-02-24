@@ -91,7 +91,7 @@
   </div>
 
   <div id="loading">Memproses absen...</div>
-  <div id="status"></div>
+  <div id="status">Memulai kamera...</div>
 
   <button id="rescan" style="display:none;" onclick="restartScan()">Scan Ulang</button>
 
@@ -128,11 +128,12 @@
         });
     }
 
-    // Cek apakah jsQR sudah siap, kalau belum delay
+    // Cek apakah jsQR sudah ready sebelum mulai scan
     function initScan() {
       if (typeof jsQR === "undefined") {
         statusDiv.innerHTML = "Menunggu library scan QR...";
-        setTimeout(initScan, 300);
+        statusDiv.style.color = "orange";
+        setTimeout(initScan, 500); // Coba lagi setiap 0.5 detik
         return;
       }
       startScan();
@@ -162,7 +163,7 @@
 
       if (code) {
         console.log("QR detected:", code.data);
-        scanning = false; // STOP SCAN
+        scanning = false; // STOP SCAN SEKARANG
 
         try {
           let url = new URL(code.data);
@@ -181,7 +182,7 @@
           } else {
             statusDiv.innerHTML = "QR terdeteksi tapi parameter tidak lengkap.";
             statusDiv.style.color = "orange";
-            scanning = true; // lanjut scan
+            scanning = true; // lanjut scan kalau gagal parse
             requestAnimationFrame(scanQR);
           }
         } catch (err) {
@@ -231,7 +232,7 @@
         body: JSON.stringify(payload)
       })
       .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
       })
       .then(data => {
