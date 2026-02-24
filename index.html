@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scan QR Absensi</title>
-  <!-- Dummy favicon biar gak error 404 -->
+  <!-- Dummy favicon -->
   <link rel="icon" href="data:,">
-  <!-- jsQR library -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+  <!-- jsQR lokal (harus ada file jsQR.min.js di folder sama) -->
+  <script src="jsQR.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -105,7 +105,16 @@
     let params = {};
     let scanning = false;
 
-    // Fungsi untuk mulai / restart scan
+    // Mulai scan setelah load
+    window.addEventListener("load", () => {
+      if (typeof jsQR === "undefined") {
+        statusDiv.innerHTML = "Library scan QR gagal dimuat. Cek file jsQR.min.js.";
+        statusDiv.style.color = "red";
+        return;
+      }
+      startScan();
+    });
+
     function startScan() {
       scanning = true;
       rescanBtn.style.display = "none";
@@ -128,17 +137,6 @@
         });
     }
 
-    // Cek apakah jsQR sudah ready sebelum mulai scan
-    function initScan() {
-      if (typeof jsQR === "undefined") {
-        statusDiv.innerHTML = "Menunggu library scan QR...";
-        statusDiv.style.color = "orange";
-        setTimeout(initScan, 500); // Coba lagi setiap 0.5 detik
-        return;
-      }
-      startScan();
-    }
-
     function scanQR() {
       if (!scanning || video.readyState !== video.HAVE_ENOUGH_DATA) {
         if (scanning) requestAnimationFrame(scanQR);
@@ -155,7 +153,7 @@
         code = jsQR(imageData.data, imageData.width, imageData.height);
       } catch (err) {
         console.error("jsQR error:", err);
-        statusDiv.innerHTML = "Error library scan: " + err.message;
+        statusDiv.innerHTML = "Error scan: " + err.message;
         statusDiv.style.color = "red";
         scanning = false;
         return;
@@ -163,7 +161,7 @@
 
       if (code) {
         console.log("QR detected:", code.data);
-        scanning = false; // STOP SCAN SEKARANG
+        scanning = false;
 
         try {
           let url = new URL(code.data);
@@ -182,11 +180,11 @@
           } else {
             statusDiv.innerHTML = "QR terdeteksi tapi parameter tidak lengkap.";
             statusDiv.style.color = "orange";
-            scanning = true; // lanjut scan kalau gagal parse
+            scanning = true;
             requestAnimationFrame(scanQR);
           }
         } catch (err) {
-          console.error("Gagal parse URL:", err, "Data QR:", code.data);
+          console.error("Parse URL gagal:", err);
           statusDiv.innerHTML = "QR terdeteksi tapi format URL salah.";
           statusDiv.style.color = "red";
           scanning = true;
@@ -232,12 +230,11 @@
         body: JSON.stringify(payload)
       })
       .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then(data => {
         loadingDiv.style.display = "none";
-        console.log("Response GAS:", data);
         if (data.ok) {
           statusDiv.innerHTML = "Absen berhasil! ID: " + (data.data?.presence_id || "Sukses");
           statusDiv.style.color = "green";
@@ -249,14 +246,10 @@
       })
       .catch(err => {
         loadingDiv.style.display = "none";
-        console.error("Fetch error:", err);
         statusDiv.innerHTML = "Gagal koneksi: " + err.message;
         statusDiv.style.color = "red";
       });
     }
-
-    // Mulai setelah halaman load
-    window.addEventListener("load", initScan);
   </script>
 </body>
 </html>
