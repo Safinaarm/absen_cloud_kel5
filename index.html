@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Absensi Digital - Input Nama & Scan</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+    }
+    h1 { color: #4c1d95; }
+    input, button {
+      padding: 12px;
+      font-size: 16px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #7c3aed;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover { background: #5a1ed8; }
+    #status { margin-top: 20px; font-weight: bold; }
+    video { width: 300px; border: 2px solid #7c3aed; border-radius: 8px; margin-top: 20px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>QR Absensi Digital</h1>
+
+  <div id="step1">
+    <p>Masukkan Nama / NIM Anda:</p>
+    <input type="text" id="user_id" placeholder="Nama / NIM" required>
+    <button id="submitNameBtn">Lanjut ke Scan QR</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="step2" style="display:none;">
+    <p>Scan QR untuk check-in:</p>
+    <video id="video" autoplay playsinline></video>
+    <div id="scanStatus"></div>
+  </div>
+
+  <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+  <script>
+    const BASE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwtaOPeaNCevIXk1SaP2KlhFrsUFAc0fyn_vPwiqUVEiJSzF_9nn56zH_hKEYjzaweG/exec";
+    let user_id = "";
+
+    // STEP 1: Input Nama/NIM
+    document.getElementById("submitNameBtn").addEventListener("click", async () => {
+      user_id = document.getElementById("user_id").value.trim();
+      const status = document.getElementById("status");
+      if (!user_id) {
+        status.textContent = "Nama/NIM wajib diisi!";
+        status.style.color = "red";
+        return;
+      }
+      status.textContent = "Memproses...";
+      status.style.color = "blue";
+
+      try {
+        // POST data awal ke spreadsheet (presence_id sementara: "PENDING")
+        const payload = {
+          user_id,
+          device_id: navigator.userAgent || "unknown",
+          course_id: "cloud-101",   // default course
+          session_id: "pending",
+          qr_token: "PENDING",
+          ts: new Date().toISOString()
+        };
+
+        const res = await fetch(`${BASE_WEBAPP_URL}?action=checkin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          status.textContent = "Nama/NIM diterima! Silakan scan QR...";
+          status.style.color = "green";
+
+          document.getElementById("step1").style.display = "none";
+          document.getElementById("step2").style.display = "block";
+
+          startScanQR();
+        } else {
+          status.textContent = "Gagal: " + (data.error || "Unknown");
+          status.style.color = "red";
+        }
+
+      } catch (err) {
+        status.textContent = "Gagal koneksi: " + err.message;
+        status.style.color = "red";
+        console.error(err);
+      }
+    });
+
+    // STEP 2: Scan QR
+    function startScanQR() {
+      const codeReader = new ZXing.BrowserMultiFormatReader();
+      const video = document.getElementById("video");
+      const scanStatus = document.getElementById("scanStatus");
+      video.style.display = "block";
+
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(stream => { video.srcObject = stream; })
+        .catch(err => { scanStatus.textContent = "Gagal akses kamera: " + err.message; scanStatus.style.color = "red"; });
+
+      codeReader.decodeFromVideoDevice(undefined, "video", async (result, err) => {
+        if (result) {
+          codeReader.reset();
+          scanStatus.textContent = "QR terdeteksi. Memproses...";
+          scanStatus.style.color = "blue";
+
+          try {
+            const url = new URL(result.text);
+            const qr_token = url.searchParams.get("qr_token");
+            const course_id = url.searchParams.get("course_id");
+            const session_id = url.searchParams.get("session_id");
+
+            const payload = {
+              user_id,
+              device_id: navigator.userAgent || "unknown",
+              course_id,
+              session_id,
+              qr_token,
+              ts: new Date().toISOString()
+            };
+
+            const res = await fetch(`${BASE_WEBAPP_URL}?action=checkin`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.ok) {
+              scanStatus.textContent = "Absen berhasil! ID: " + (data.data.presence_id || "Sukses");
+              scanStatus.style.color = "green";
+            } else {
+              scanStatus.textContent = "Gagal: " + (data.error || "Unknown");
+              scanStatus.style.color = "red";
+            }
+
+          } catch (err) {
+            scanStatus.textContent = "Gagal koneksi: " + err.message;
+            scanStatus.style.color = "red";
+          }
+        }
+
+        if (err && !(err instanceof ZXing.NotFoundException)) {
+          console.error(err);
+          scanStatus.textContent = "Error scan: " + err.message;
+          scanStatus.style.color = "red";
+        }
+      });
+    }
+  </script>
+</body>
+</html>
