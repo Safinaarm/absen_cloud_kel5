@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scan QR Absensi</title>
-  <!-- Dummy favicon -->
+  <!-- Dummy favicon hilangkan error 404 -->
   <link rel="icon" href="data:,">
-  <!-- jsQR lokal (harus ada file jsQR.min.js di folder sama) -->
+  <!-- jsQR LOKAL (pastikan file jsQR.min.js ada di folder sama) -->
   <script src="jsQR.min.js"></script>
   <style>
     body {
@@ -105,7 +105,7 @@
     let params = {};
     let scanning = false;
 
-    // Mulai scan setelah load
+    // Mulai setelah halaman load
     window.addEventListener("load", () => {
       if (typeof jsQR === "undefined") {
         statusDiv.innerHTML = "Library scan QR gagal dimuat. Cek file jsQR.min.js.";
@@ -161,7 +161,7 @@
 
       if (code) {
         console.log("QR detected:", code.data);
-        scanning = false;
+        scanning = false; // STOP SCAN
 
         try {
           let url = new URL(code.data);
@@ -184,7 +184,7 @@
             requestAnimationFrame(scanQR);
           }
         } catch (err) {
-          console.error("Parse URL gagal:", err);
+          console.error("Gagal parse URL:", err, "Data QR:", code.data);
           statusDiv.innerHTML = "QR terdeteksi tapi format URL salah.";
           statusDiv.style.color = "red";
           scanning = true;
@@ -235,6 +235,7 @@
       })
       .then(data => {
         loadingDiv.style.display = "none";
+        console.log("Response GAS:", data);
         if (data.ok) {
           statusDiv.innerHTML = "Absen berhasil! ID: " + (data.data?.presence_id || "Sukses");
           statusDiv.style.color = "green";
@@ -246,6 +247,7 @@
       })
       .catch(err => {
         loadingDiv.style.display = "none";
+        console.error("Fetch error:", err);
         statusDiv.innerHTML = "Gagal koneksi: " + err.message;
         statusDiv.style.color = "red";
       });
