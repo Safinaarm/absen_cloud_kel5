@@ -1,0 +1,133 @@
+openapi: 3.0.3
+info:
+  title: QR Absensi Digital API
+  description: |
+    API untuk sistem absensi berbasis QR Code
+    menggunakan Google Apps Script dan Google Spreadsheet.
+  version: 1.0.0
+servers:
+  - url: https://script.google.com/macros/s/AKfycbwtaOPeaNCevIXk1SaP2KlhFrsUFAc0fyn_vPwiqUVEiJSzF_9nn56zH_hKEYjzaweG/exec
+
+paths:
+
+  /:
+    get:
+      summary: Generate QR Token
+      description: Membuat QR Token baru untuk sesi absensi
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            example: generate
+      responses:
+        "200":
+          description: QR Token berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateResponse"
+
+    post:
+      summary: Check-in Absensi
+      description: Digunakan saat QR discan oleh peserta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckinRequest"
+      responses:
+        "200":
+          description: Check-in berhasil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckinResponse"
+
+  /status:
+    get:
+      summary: Cek Status QR
+      description: Mengecek apakah QR Token masih aktif atau sudah expired
+      parameters:
+        - name: qr_token
+          in: query
+          required: true
+          schema:
+            type: string
+            example: TKN-87A5BF57
+      responses:
+        "200":
+          description: Status QR
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+
+components:
+  schemas:
+
+    GenerateResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            qr_token:
+              type: string
+              example: TKN-87A5BF57
+            course_id:
+              type: string
+              example: cloud-101
+            session_id:
+              type: string
+              example: sesi-5906496
+            expires_at:
+              type: string
+              format: date-time
+            checkin_url:
+              type: string
+              example: https://script.google.com/macros/s/AKfycbwtaOPeaNCevIXk1SaP2KlhFrsUFAc0fyn_vPwiqUVEiJSzF_9nn56zH_hKEYjzaweG/exec?mode=checkin
+
+    StatusResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        status:
+          type: string
+          example: active
+        expires_at:
+          type: string
+          format: date-time
+
+    CheckinRequest:
+      type: object
+      required:
+        - qr_token
+        - student_id
+      properties:
+        qr_token:
+          type: string
+          example: TKN-87A5BF57
+        student_id:
+          type: string
+          example: 434231002
+
+    CheckinResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Check-in berhasil
+        time:
+          type: string
+          format: date-time
